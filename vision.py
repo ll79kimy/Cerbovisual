@@ -53,13 +53,35 @@ param1=40,param2=85,minRadius=0,maxRadius=300)
 		if circles != None and len(circles) > 0:
 			circles = np.uint16(np.around(circles))
 			mask = np.zeros(RGB.shape, dtype='uint8')
+			bestColorEstimator = 0
+			bestCircle = None
 			for i in circles[0,:]:				
 				cv2.circle(mask,(i[0],i[1]),i[2],(1,1,1),-1)
 				#mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 				#mask = cv2.resize(mask,(480,360), interpolation = cv2.INTER_LANCZOS4  )
 				#print(RGB.shape, depth.shape)			
-				detector = mask*RGB				
-				mean, dev = cv2.meanStdDev(detector)
+				detector = mask*RGB
+				nPixelsCircle= np.sum (mask)
+
+				
+				# Convert BGR to HSV
+			  	hsv = cv2.cvtColor(detector, cv2.COLOR_BGR2HSV)
+
+				# define range of yellow color in HSV
+				lower_yel = np.array([20,100,100])
+				upper_yel = np.array([30,255,255])
+				
+
+				# Threshold the HSV image to get only yellow colors
+				colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
+				nPixelsColor= np.sum (colorMask/255)
+				colorEstimator = nPixelsColor/nPixelCircle
+
+				if colorEstimator > bestColorEstimator:
+					bestColorEstimator = colorEstimator
+					bestCircle = i
+				
+				#mean, dev = cv2.meanStdDev(detector)
 				#if len(circles[0,:]) > 1:
 					#print(mean,dev)
 			if len(circles[0,:]) > 1:
