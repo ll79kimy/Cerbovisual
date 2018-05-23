@@ -67,6 +67,12 @@ def detectColor(img):
 	segment = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
 	return segment, np.sum(colorMask/255)
 
+def promediarLista(lista):
+    sum=0.0
+    for i in range(0,len(lista)):
+        sum=sum+lista[i]
+
+    return sum/len(lista)
 
 rospy.init_node("camera_proves")
 r = rospy.Rate(10) #10hz
@@ -75,77 +81,101 @@ rospy.Subscriber("/camera/depth/image", Image, getDepth)
 rospy.Subscriber("/odom", Odometry, getOdom)
 
 cmd_vel = rospy.Publisher("/cmd_vel_mux/input/navi", Twist, queue_size = 1)
-	
+
+w, h = 1, 20
+a = [[0 for x in range(w)] for y in range(h)]
+d=1	
 bridge = CvBridge()
 while not rospy.is_shutdown():	
 	if RGB != None and depth != None:
-
-		colorMask1 = np.zeros(RGB.shape[0:2], dtype='uint8')
-		colorMask2 = np.zeros(RGB.shape[0:2], dtype='uint8')
-		segment = None		
-		gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
-		#edges = cv2.Canny(gray,400,400/2,apertureSize = 3)
+		for i in range (0,20):
+			colorMask1 = np.zeros(RGB.shape[0:2], dtype='uint8')
+			colorMask2 = np.zeros(RGB.shape[0:2], dtype='uint8')
+			segment = None		
+			gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
+			#edges = cv2.Canny(gray,400,400/2,apertureSize = 3)
 
 				
-		# Convert BGR to HSV
-	  	hsv = cv2.cvtColor(RGB, cv2.COLOR_BGR2HSV)
+			# Convert BGR to HSV
+		  	hsv = cv2.cvtColor(RGB, cv2.COLOR_BGR2HSV)
 
-		# define range of yellow color in HSV
-		lower_yel = np.array([10,100,100])
-		upper_yel = np.array([30,255,255])
+			# define range of yellow color in HSV
+			lower_yel = np.array([10,100,100])
+			upper_yel = np.array([30,255,255])
 		
 
-		# Threshold the HSV image to get only yellow colors
-		colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
-		colorMask = cv2.erode(colorMask, None, iterations=2)
-		colorMask = cv2.dilate(colorMask, None, iterations=2)
-		#colorMask = np.array(colorMask, dtype='uint8')	
+			# Threshold the HSV image to get only yellow colors
+			colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
+			colorMask = cv2.erode(colorMask, None, iterations=2)
+			colorMask = cv2.dilate(colorMask, None, iterations=2)
+			#colorMask = np.array(colorMask, dtype='uint8')	
 		
-		cnts = cv2.findContours(colorMask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
-		center = None
-		if len(cnts) > 0:
-			# find the largest contour in the mask, then use
-			# it to compute the minimum enclosing circle and
-			# centroid
-			c = max(cnts, key=cv2.contourArea)
-			((x, y), radius) = cv2.minEnclosingCircle(c)
-			M = cv2.moments(c)
-			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-			print ('radius', radius)
-			# only proceed if the radius meets a minimum size
-			if radius > 10:
-				# draw the circle and centroid on the frame,
-				# then update the list of tracked points
-				cv2.circle(RGB, (int(x), int(y)), int(radius),
-						(0, 255, 255), 2)
-				cv2.circle(RGB, center, 5, (0, 0, 255), -1)
-				if radius > 100:
-					colorMask1 = colorMask
+			cnts = cv2.findContours(colorMask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+			center = None
+
+			if len(cnts) > 0:
+			
+					# find the largest contour in the mask, then use
+					# it to compute the minimum enclosing circle and
+					# centroid
+					c = max(cnts, key=cv2.contourArea)
+					((x, y), radius) = cv2.minEnclosingCircle(c)
+					M = cv2.moments(c)
+					center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+					#print ('radius', radius)
+
+					# only proceed if the radius meets a minimum size
+					if radius > 10:
+						# draw the circle and centroid on the frame,
+						# then update the list of tracked points
+						cv2.circle(RGB, (int(x), int(y)), int(radius),
+								(0, 255, 255), 2)
+						cv2.circle(RGB, center, 5, (0, 0, 255), -1)
+						if radius > 100:
+							colorMask1 = colorMask
+						else:
+							colorMask2 = colorMask
+
+					
+			colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
+			#cv2.imshow("Image from my node", np.hstack([colorMask, RGB]) )		
+			cv2.imshow('RGB',RGB)
+			cv2.waitKey(1)
+			a[i] = radius
+			i = i+1	
+
+			'''speed = Twist()
+			error_angle = RGB.shape[1]/2-x
+			speed.angular.z = 0.02
+			if  abs(error_angle) >= 10:
+				if error_angle > 0:
+			    		speed.angular.z = 0.3
 				else:
-					colorMask2 = colorMask
- 
-
-		
-		
-		
-		'''speed = Twist()
-		error_angle = RGB.shape[1]/2-x
-		speed.angular.z = 0.02
-		if  abs(error_angle) >= 10:
-			if error_angle > 0:
-		    		speed.angular.z = 0.3
+					speed.angular.z = -0.3
+			if len(cnts) != 0: 
+				if d > 0.15:
+					speed.linear.x = 0.1
+				else:
+					speed.linear.x = 0
 			else:
-				speed.angular.z = -0.3
-		speed.linear.x = -0.1
-		print(error_angle, speed.angular)
-		cmd_vel.publish(speed)
-    		r.sleep()'''
+				speed.linear.x = 0
+			cmd_vel.publish(speed)
+			print(error_angle, speed.angular, speed.linear.x)'''
 
-		#colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
-		cv2.imshow("Image from my node", np.hstack([colorMask1, colorMask2]) )		
-		cv2.waitKey(1)
+		r = promediarLista(a)	
+		d = 60/r
+		print d
+		if d > 2.5:
+			d = d+0.1*(d-1)+0.04*(d-1)*(d-1)*(d-1)
+		elif d < 0.2:
+			d = d+0.1*(d-1)
+		else:
+			d = d+0.1*(d-1)+0.05*(d-1)*(d-1)*(d-1)
+		
+		print r
+		print ('distance', d)
 
-
+    		#r.sleep()
 
 
 
