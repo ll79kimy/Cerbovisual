@@ -26,7 +26,7 @@ class PID:
 	Discrete PID control
 	"""
 
-	def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=500, Integrator_min=-500):
+	def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=0.3, Integrator_min=-0.3):
 
 		self.Kp=P
 		self.Ki=I
@@ -197,7 +197,12 @@ def velLinNeg (velLin):
 		velLin = velLinMin
 		print ('equal', velLin)
 		return velLin
-
+velLinMax = 0.2
+velLinMin = 0
+velAngMax = 0.3
+velAngMin = -0.3
+velLin = 0
+velAng = 0
 
 rospy.init_node("camera_proves")
 r = rospy.Rate(10) #10hz
@@ -211,31 +216,23 @@ w, h = 1, 20
 a = [[0 for x in range(w)] for y in range(h)]
 d=1	
 bridge = CvBridge()
-
-speed = Twist()
-speed.angular.z = 0
-value = 0
-A = None
 while not rospy.is_shutdown():	
 
-	
+	value = 0
 	pid = PID()
-	pid.setKp(0.001)
-	pid.setKd(0.05)
-	pid.setKi(0.005)
+	pid.setKp(0.01)
+	pid.setKd(0.01)
+	pid.setKi(0.01)
 	
 	
 
 	if RGB != None and depth != None:
-
-
-		if A == None:
-			A = [RGB*0, RGB*0]
-
 		for i in range (0,20):
+			colorMask1 = np.zeros(RGB.shape[0:2], dtype='uint8')
+			colorMask2 = np.zeros(RGB.shape[0:2], dtype='uint8')
 			segment = None		
 			gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
-	
+			#edges = cv2.Canny(gray,400,400/2,apertureSize = 3)
 
 				
 			# Convert BGR to HSV
@@ -273,47 +270,66 @@ while not rospy.is_shutdown():
 						cv2.circle(RGB, (int(x), int(y)), int(radius),
 								(0, 255, 255), 2)
 						cv2.circle(RGB, center, 5, (0, 0, 255), -1)
-			
-
-					
-					colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
-					#cv2.imshow("Image from my node", np.hstack([colorMask, RGB]) )		
-			
-					a[i] = radius
-					i = i+1	
-
-			
-					error_angle = RGB.shape[1]/2-center[0]
-			
-			
-			
-			
-					if  abs(error_angle) >= 10:
-						if error_angle > 0:
-							pid.setPoint(0.3)
-							A[0] = RGB				
-					    		#	speed.angular.z = 0.3
-							#velAng = velAngPos(velAng)
-							#print (center)
+						if radius > 100:
+							colorMask1 = colorMask
 						else:
-							A[1] = RGB					
-							pid.setPoint(-0.3)							
-							#speed.angular.z = -0.3
-							#velAng = velAngNeg(velAng)			
-					
-						value = pid.update(value)
-						speed.angular.z = value
-						print(pid.getPoint(), value, speed.angular.z)
+							colorMask2 = colorMask
 
-					cmd_vel.publish(speed)
-			#cv2.imshow("Image from my node",np.hstack(A)  )	
-			#cv2.imshow('RGB',RGB)
-			cv2.imshow("Image from my node",np.hstack(A))
+					
+			colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
+			#cv2.imshow("Image from my node", np.hstack([colorMask, RGB]) )		
+			cv2.imshow('RGB',RGB)
 			cv2.waitKey(1)
+			a[i] = radius
+			i = i+1	
+
+			speed = Twist()
+			error_angle = RGB.shape[1]/2-x
+			speed.angular.z = 0
+
+			if  abs(error_angle) >= 10:
+				if error_angle > 0:
+					#pid.setPoint(0.3)
+			    		#speed.angular.z = 0.3
+					velAng = velAngPos(velAng)
+				else:
+					#pid.setPoint(-0.3)
+					#speed.angular.z = -0.3
+					velAng = velAngNeg(velAng)				
+				#print(pid.getPoint(), value)
+				#value = pid.update(value)
+				
+				#speed.angular.z = value
+			if len(cnts) != 0: 
+				if d > 0.15:
+					velLin = velLinPos(velLin)
+					#speed.linear.x = 0.2
+				else:
+					velLin = velLinNeg(velLin)
+					#speed.linear.x = 0
+			else:
+				velLinNeg(velLin)
+				#speed.linear.x = 0'''
+			print('angle', error_angle, velAng, 'distance', d, velLin)
+			speed.angular.z=velAng
+			speed.linear.x = velLin
+			cmd_vel.publish(speed)
 			#print(error_angle, speed.angular, speed.linear.x)
 
+		'''r = promediarLista(a)	
+		d = 60/r
+		#print d
+		if d > 2.5:
+			d = d+0.1*(d-1)+0.04*(d-1)*(d-1)*(d-1)
+		elif d < 0.2:
+			d = d+0.1*(d-1)
+		else:
+			d = d+0.1*(d-1)+0.05*(d-1)*(d-1)*(d-1)
+		
+		#print r
+		#print ('distance', d)
 
-    		#r.sleep()
+    		#r.sleep()'''
 
 
 
