@@ -140,7 +140,7 @@ def detectColor(img):
 	# define range of yellow color in HSV
 	lower_yel = np.array([13,100,100])
 	upper_yel = np.array([20,255,255])
-	
+
 	# Threshold the HSV image to get only yellow colors
 	colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
 	segment = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
@@ -165,7 +165,7 @@ def velAngPos (velAng):
 		print ('equal', velAng)
 		return velAng
 
-def velAngNeg (velAng):	
+def velAngNeg (velAng):
 	print('velAngNeg')
 	if velAng > velAngMin:
 		velAng = (velAng-0.01)
@@ -197,6 +197,7 @@ def velLinNeg (velLin):
 		velLin = velLinMin
 		print ('equal', velLin)
 		return velLin
+
 velLinMax = 0.2
 velLinMin = 0
 velAngMax = 0.3
@@ -214,46 +215,46 @@ cmd_vel = rospy.Publisher("/cmd_vel_mux/input/navi", Twist, queue_size = 1)
 
 w, h = 1, 20
 a = [[0 for x in range(w)] for y in range(h)]
-d=1	
+d=1
 bridge = CvBridge()
-while not rospy.is_shutdown():	
+while not rospy.is_shutdown():
 
 	value = 0
 	pid = PID()
 	pid.setKp(0.01)
 	pid.setKd(0.01)
 	pid.setKi(0.01)
-	
-	
+
+
 
 	if RGB != None and depth != None:
 		for i in range (0,20):
 			colorMask1 = np.zeros(RGB.shape[0:2], dtype='uint8')
 			colorMask2 = np.zeros(RGB.shape[0:2], dtype='uint8')
-			segment = None		
+			segment = None
 			gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
 			#edges = cv2.Canny(gray,400,400/2,apertureSize = 3)
 
-				
+
 			# Convert BGR to HSV
 		  	hsv = cv2.cvtColor(RGB, cv2.COLOR_BGR2HSV)
 
 			# define range of yellow color in HSV
 			lower_yel = np.array([10,100,100])
 			upper_yel = np.array([30,255,255])
-		
+
 
 			# Threshold the HSV image to get only yellow colors
 			colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
 			colorMask = cv2.erode(colorMask, None, iterations=2)
 			colorMask = cv2.dilate(colorMask, None, iterations=2)
-			#colorMask = np.array(colorMask, dtype='uint8')	
-		
+			#colorMask = np.array(colorMask, dtype='uint8')
+
 			cnts = cv2.findContours(colorMask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
 			center = None
 
 			if len(cnts) > 0:
-			
+
 					# find the largest contour in the mask, then use
 					# it to compute the minimum enclosing circle and
 					# centroid
@@ -275,13 +276,13 @@ while not rospy.is_shutdown():
 						else:
 							colorMask2 = colorMask
 
-					
+
 			colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
-			#cv2.imshow("Image from my node", np.hstack([colorMask, RGB]) )		
+			#cv2.imshow("Image from my node", np.hstack([colorMask, RGB]) )
 			cv2.imshow('RGB',RGB)
 			cv2.waitKey(1)
 			a[i] = radius
-			i = i+1	
+			i = i+1
 
 			speed = Twist()
 			error_angle = RGB.shape[1]/2-x
@@ -295,12 +296,12 @@ while not rospy.is_shutdown():
 				else:
 					#pid.setPoint(-0.3)
 					#speed.angular.z = -0.3
-					velAng = velAngNeg(velAng)				
+					velAng = velAngNeg(velAng)
 				#print(pid.getPoint(), value)
 				#value = pid.update(value)
-				
+
 				#speed.angular.z = value
-			if len(cnts) != 0: 
+			if len(cnts) != 0:
 				if d > 0.15:
 					velLin = velLinPos(velLin)
 					#speed.linear.x = 0.2
@@ -316,7 +317,7 @@ while not rospy.is_shutdown():
 			cmd_vel.publish(speed)
 			#print(error_angle, speed.angular, speed.linear.x)
 
-		'''r = promediarLista(a)	
+		'''r = promediarLista(a)
 		d = 60/r
 		#print d
 		if d > 2.5:
@@ -325,43 +326,8 @@ while not rospy.is_shutdown():
 			d = d+0.1*(d-1)
 		else:
 			d = d+0.1*(d-1)+0.05*(d-1)*(d-1)*(d-1)
-		
+
 		#print r
 		#print ('distance', d)
 
     		#r.sleep()'''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		
-
