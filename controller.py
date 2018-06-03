@@ -38,7 +38,7 @@ class PID:
 
 		PID = self.P_value + self.I_value + self.D_value
 
-		return self.P_value, self.I_value, self.D_value, PID
+		return PID
 
 	def setPoint(self,set_point):
 		"""
