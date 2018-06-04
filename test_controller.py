@@ -16,6 +16,16 @@ from collections import deque
 from controller import PID
 from numpy.linalg import inv
 
+def calculateRouteLin(pelota, anglePelota):
+	x2 = pelota.x - np.cos(anglePelota)*0.2
+	y2 = pelota.y - np.sin(anglePelota)*0.2
+	theta2 = atan2(y2, x2)
+	m1 = y2/x2
+	def cuadratic(x):	
+		#return a*x**2+b*x+c
+		return m1*x
+	return cuadratic
+
 def calculateRoute(pelota, anglePelota, goal,theta):
 	x1 = 0.2*np.cos(theta)
 	y1 = 0.2*np.sin(theta)
@@ -30,17 +40,9 @@ def calculateRoute(pelota, anglePelota, goal,theta):
 	v = np.transpose(v)
 	A = np.matrix(((3*x1**2, 2*x1, 1, 0), (3*x2**2, 2*x2, 1, 0), (x1**3, x1**2, x1, 1),(x2**3, x2**2, x2, 1)))
 	Ai =inv(A)
-	print (x1, x2)
 	print Ai
 	print v
 	y = Ai*v
-	'''a = (2*y2)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (2*y1)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) + m1/(x1**2 - 2*x1*x2 + x2**2) + m2/(x1**2 - 2*x1*x2 + x2**2)
-	b=(3*y1*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (m2*(2*x1 + x2))/(x1**2 - 2*x1*x2 + x2**2) - (m1*(x1 + 2*x2))/(x1**2 - 2*x1*x2 + x2**2) - (3*y2*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3)
-	c=(m1*(x2**2 + 2*x1*x2))/(x1**2 - 2*x1*x2 + x2**2) + (m2*(x1**2 + 2*x2*x1))/(x1**2 - 2*x1*x2 + x2**2) - (6*x1*x2*y1)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) + (6*x1*x2*y2)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3)
-	d=(y1*(- x2**3 + 3*x1*x2**2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (y2*(- x1**3 + 3*x2*x1**2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (m1*x1*x2**2)/(x1**2 - 2*x1*x2 + x2**2) - (m2*x1**2*x2)/(x1**2 - 2*x1*x2 + x2**2)'''
-	#a =(m1-m2)/(2*(x1-x2))
-	#b = m1 - 2*a*x1
-	#c = y2 - a*x2**2 - b*x2
 	print (y, m1, m2, b2, x1, y1, x2, y2)
 	def cuadratic(x):	
 		#return a*x**2+b*x+c
@@ -62,12 +64,15 @@ goal.y = -1
 anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
 x1 = (0.2*np.cos(theta))
 x2 = (pelota.x - np.cos(anglePelota)*0.2)
-print (x1, x2)
 print(pelota,radians2grades(anglePelota),radians2grades(theta))
-#xRoute = np.linspace(x1,x2,num=20)
+#xRoute = np.linspace(x1,x2,num=10)
 dx = (x2-x1)/10
 print (x1, x2)
 xRoute=np.array((x1, x1+dx, x1+2*dx, x1+3*dx, x1+4*dx, x1+5*dx, x1+6*dx, x1+7*dx, x1+8*dx, x1+9*dx, x2))
 yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
 route = np.vstack((xRoute, yRoute))
-print(route)
+#dxlin = x2/10
+xRouteLin = np.linspace(0, x2, num=10)
+yRouteLin = calculateRouteLin(pelota,anglePelota)(xRouteLin)
+routeLin = np.vstack((xRouteLin, yRouteLin))
+print(route, routeLin)
