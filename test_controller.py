@@ -46,7 +46,7 @@ def calculateRoute(pelota, anglePelota, goal,theta):
 	print (y, m1, m2, b2, x1, y1, x2, y2)
 	def cuadratic(x):	
 		#return a*x**2+b*x+c
-		return y[0]*x**3+y[1]*x**2+y[2]*2+y[3]
+		return y[0]*x**3+y[1]*x**2+y[2]*x+y[3]
 	return cuadratic
 
 def radians2grades(radians):

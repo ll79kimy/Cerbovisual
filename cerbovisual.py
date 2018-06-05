@@ -92,16 +92,16 @@ def calculateRoute(pelota, anglePelota, goal,theta):
 	v = np.transpose(v)
 	A = np.matrix(((3*x1**2, 2*x1, 1, 0), (3*x2**2, 2*x2, 1, 0), (x1**3, x1**2, x1, 1),(x2**3, x2**2, x2, 1)))
 	Ai =inv(A)
-	print Ai
-	print v
+	print ("Ai", Ai)
+	print ("v", v)
 	m = Ai*v
-	print (m, m1, m2, b2, x1, y1, x2, y2)
+	print ("m", m,"m1", m1,"m2", m2,"b2", b2, "x1", x1,"y1", y1,"x2", x2,"y2", y2)
 	#print("Ys",y[0][0],y[1][0],y[2][0],y[3][0])
 	
 	def cuadratic(x):	
 		#return a*x**2+b*x+c
 
-		return m[0]*x**3+m[1]*x**2+m[2]*2+m[3]
+		return m[0]*x**3+m[1]*x**2+m[2]*x+m[3]
 	return cuadratic
 
 def calculateRouteLin(pelota, anglePelota):
@@ -242,15 +242,15 @@ while not rospy.is_shutdown():
 			angularEntry = -0.3
 	    	else:
 			angularEntry = 0
+			distance = calculateDistance(radiusList)
+			pelota = posPelota(x,y,theta,distance)
+			anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
 			x1 = 0.2*np.cos(theta)
 			y1 = 0.2*np.sin(theta)
 			x2 = pelota.x - np.cos(anglePelota)*0.2
 			y2 = pelota.y - np.sin(anglePelota)*0.2
-			print(x1,y1,x2,y2)
-			distance = calculateDistance(radiusList)
-			pelota = posPelota(x,y,theta,distance)
-			anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
-			print(x,y,pelota,radians2grades(anglePelota),radians2grades(theta))
+			print("x1", x1,"y1",y1,"x2",x2,"y2",y2)
+			print("x",x,"y",y,pelota,"anglePelota", radians2grades(anglePelota),"theta", radians2grades(theta))
 			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,5)
 			xRoute = np.linspace(x1,x2,num=5)
 			yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
@@ -271,47 +271,87 @@ while not rospy.is_shutdown():
 	#linear
 	'''x2 = pelota.x - np.cos(anglePelota)*0.2
 	y2 = pelota.y - np.sin(anglePelota)*0.2
-	theta2 = atan2(y2, x2)
-
-	angle_to_goal = theta2
-        error_angle =  angleError(theta, angle_to_goal)
-    	if  error_angle >= 0.1:
-            if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
-                angularEntry = 0.3
-            else:
-                angularEntry = -0.3
-	point.x = route[0,idxPoint]
-        point.y = route[1,idxPoint]
         inc_x = x2 - x
         inc_y = y2 - y
-	linear_errror = sqrt(inc_x**2 + inc_y**2)
+        angle_to_goal = atan2(inc_y, inc_x)
+        error_angle =  angleError(theta, angle_to_goal)
+	print("inc_x", inc_x, "inc_y",inc_y, "a2g", angle_to_goal, "error_angle", error_angle)
+	#linearEntry = 0.1
+	while abs(error_angle) > 0.07:
+    		if  error_angle >= 0.1:
+        	    if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
+        	        angularEntry = 0.3
+        	    else:
+        	        angularEntry = -0.3
+		linearEntry = 0
+		angularController.setPoint(angularEntry)	
+		speed.angular.z = angularController.update(speed.angular.z)
 
-        error_angle =  angleError(theta, anglePelota)'''
+		linearController.setPoint(linearEntry)
+		speed.linear.x = linearController.update(speed.linear.x)
 
+		cmd_vel.publish(speed)
 
+	linear_error = sqrt(inc_x**2 + inc_y**2)
+	while abs(linear_error) > 0.05:
+		linearEntry = 0.1		
+		linearController.setPoint(linearEntry)
+		angularEntry = 0
+		linearEntry = 0
+		angularController.setPoint(angularEntry)	
+		speed.angular.z = angularController.update(speed.angular.z)
+
+		linearController.setPoint(linearEntry)
+		speed.linear.x = linearController.update(speed.linear.x)
+
+		cmd_vel.publish(speed)
+
+        inc_x = goal.x - x
+        inc_y = goal.y - y	
+        angle_to_goal = atan2(inc_y, inc_x)
+        error_angle =  angleError(theta, angle_to_goal) 
+	while abs(error_angle) > 0.07:
+    		if  error_angle >= 0.1:
+        	    if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
+        	        angularEntry = 0.3
+        	    else:
+        	        angularEntry = -0.3
+		linearEntry = 0
+		angularController.setPoint(angularEntry)	
+		speed.angular.z = angularController.update(speed.angular.z)
+
+		linearController.setPoint(linearEntry)
+		speed.linear.x = linearController.update(speed.linear.x)
+
+		cmd_vel.publish(speed)'''
+
+	
+
+	#normal
 	point.x = route[0,idxPoint]
         point.y = route[1,idxPoint]
         inc_x = point.x - x
         inc_y = point.y - y
         angle_to_goal = atan2(inc_y, inc_x)
         error_angle =  angleError(theta, angle_to_goal)
+	print("inc_x", inc_x, "inc_y",inc_y, "a2g", angle_to_goal, "error_angle", error_angle)
 	linearEntry = 0.1
-    	if  error_angle >= 0.1:
+    	if  error_angle >= 0.25:
             if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
-                angularEntry = 0.3
+                angularEntry = 0.2
             else:
-                angularEntry = -0.3
+                angularEntry = -0.2
 
 	linear_error = sqrt(inc_x**2 + inc_y**2)
 
-	print(idxPoint)
-	print("Points",idxPoint,route[0,idxPoint],route[1,idxPoint])
-	print(x,y,"errorAngle ",error_angle,"linearError ",linear_error)
+	print("idxPoint:",idxPoint)
+	print("Points:",idxPoint,route[0,idxPoint],route[1,idxPoint])
+	print("x:",x,"y:",y,"errorAngle ",error_angle,"linearError ",linear_error)
 	
         
-    	if linear_error <= 0.3:
+    	if linear_error <= 0.01:
         	idxPoint+=1
-		if idxPoint > len(route):
+		if idxPoint > 5:
 			moving = False
 			hiting = True
 			
