@@ -14,7 +14,7 @@ from tf.transformations import euler_from_quaternion
 from cv_bridge import CvBridge, CvBridgeError
 from collections import deque
 from controller import PID
-
+from numpy.linalg import inv
 RGB = None
 
 x = 0.0
@@ -78,8 +78,7 @@ def calculateDistance(radiusList):
 def radians2grades(radians):
 	return radians*180/pi
 
-def calculateRoute(pelota, anglePelota, goal):
-	global theta
+def calculateRoute(pelota, anglePelota, goal,theta):
 	x1 = 0.2*np.cos(theta)
 	y1 = 0.2*np.sin(theta)
 	x2 = pelota.x - np.cos(anglePelota)*0.2
@@ -89,18 +88,30 @@ def calculateRoute(pelota, anglePelota, goal):
 	m2 = (pelota.y-y2)/(pelota.x-x2)
 
 	b2 = y2-m2*x2
+	v = np.matrix((m1,m2,y1,y2))
+	v = np.transpose(v)
+	A = np.matrix(((3*x1**2, 2*x1, 1, 0), (3*x2**2, 2*x2, 1, 0), (x1**3, x1**2, x1, 1),(x2**3, x2**2, x2, 1)))
+	Ai =inv(A)
+	print Ai
+	print v
+	m = Ai*v
+	print (m, m1, m2, b2, x1, y1, x2, y2)
+	#print("Ys",y[0][0],y[1][0],y[2][0],y[3][0])
 	
-	a = (2*y2)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (2*y1)/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) + m1/(x1**2 - 2*x1*x2 + x2**2) + m2/(x1**2 - 2*x1*x2 + x2**2)
-	b=(3*y1*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (m2*(2*x1 + x2))/(x1**2 - 2*x1*x2 + x2**2) - (m1*(x1 + 2*x2))/(x1**2 - 2*x1*x2 + x2**2) - (3*y2*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3)
-	c=(3*y1*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3) - (m2*(2*x1 + x2))/(x1**2 - 2*x1*x2 + x2**2) - (m1*(x1 + 2*x2))/(x1**2 - 2*x1*x2 + x2**2) - (3*y2*(x1 + x2))/(x1**3 - 3*x1**2*x2 + 3*x1*x2**2 - x2**3)
-	d=(y1*(- x2**3 + 3*x1*x2**2))/(d*x1**3 - 3*d*x1**2*x2 + 3*d*x1*x2**2 - d*x2**3) - (y2*(- x1**3 + 3*x2*x1**2))/(d*x1**3 - 3*d*x1**2*x2 + 3*d*x1*x2**2 - d*x2**3) - (m1*x1*x2**2)/(d*x1**2 - 2*d*x1*x2 + d*x2**2) - (m2*x1**2*x2)/(d*x1**2 - 2*d*x1*x2 + d*x2**2)
-	#a =(m1-m2)/(2*(x1-x2))
-	#b = m1 - 2*a*x1
-	#c = y2 - a*x2**2 - b*x2
-	print (a, b, c, d, m1, m2, b2, x1, y1, x2, y2)
 	def cuadratic(x):	
 		#return a*x**2+b*x+c
-		return a*x**3+b*x**2+c*2+d
+
+		return m[0]*x**3+m[1]*x**2+m[2]*2+m[3]
+	return cuadratic
+
+def calculateRouteLin(pelota, anglePelota):
+	x2 = pelota.x - np.cos(anglePelota)*0.2
+	y2 = pelota.y - np.sin(anglePelota)*0.2
+	theta2 = atan2(y2, x2)
+	m1 = y2/x2
+	def cuadratic(x):	
+		#return a*x**2+b*x+c
+		return m1*x
 	return cuadratic
 
 def angleError(a, b):
@@ -175,10 +186,10 @@ moving = False
 hiting = False
 route = None
 
-idxPoint = 1
+idxPoint = 0
 while not rospy.is_shutdown():
     #print(x,y,theta)
-    if RGB != None:
+    if RGB != None and searching:
 
         gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
 
@@ -231,17 +242,17 @@ while not rospy.is_shutdown():
 			angularEntry = -0.3
 	    	else:
 			angularEntry = 0
-			if searching == True:
-				distance = calculateDistance(radiusList)
-				pelota = posPelota(x,y,theta,distance)
-				anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
-				print(x,y,pelota,radians2grades(anglePelota),radians2grades(theta))
-				xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2-0.6,10)+0.8
-				yRoute = calculateRoute(pelota,anglePelota,goal)(xRoute)
-				route = np.vstack((xRoute, yRoute))
-				print(route)
-				searching = False
-				moving = True
+			
+			distance = calculateDistance(radiusList)
+			pelota = posPelota(x,y,theta,distance)
+			anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
+			print(x,y,pelota,radians2grades(anglePelota),radians2grades(theta))
+			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2-0.6,10)+0.8
+			yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
+			route = np.vstack((xRoute, yRoute))
+			print("route",route.shape,route)
+			searching = False
+			moving = True
 
 	elif angularEntry == 0:
 	    angularEntry = -0.3
@@ -251,10 +262,9 @@ while not rospy.is_shutdown():
 
 	
 
-    if moving == True:
-	print(x,y,anglePelota,theta)
-	point.x = route[0][idxPoint]
-        point.y = route[1][idxPoint]
+    if moving == True:	
+	point.x = route[0,idxPoint]
+        point.y = route[1,idxPoint]
         inc_x = point.x - x
         inc_y = point.y - y
         angle_to_goal = atan2(inc_y, inc_x)
@@ -266,9 +276,14 @@ while not rospy.is_shutdown():
             else:
                 angularEntry = -0.3
 
+	distance = sqrt(inc_x**2 + inc_y**2)
 
-        distance = sqrt(inc_x**2 + inc_y**2)
-    	if distance <= 0.3:
+	print(idxPoint)
+	print("Points",idxPoint,route[0,idxPoint],route[1,idxPoint])
+	print(x,y,error_angle,distance)
+	
+        
+    	if distance <= 0.5:
         	idxPoint+=1
 		if idxPoint > len(route):
 			moving = False
