@@ -242,12 +242,17 @@ while not rospy.is_shutdown():
 			angularEntry = -0.3
 	    	else:
 			angularEntry = 0
-			
+			x1 = 0.2*np.cos(theta)
+			y1 = 0.2*np.sin(theta)
+			x2 = pelota.x - np.cos(anglePelota)*0.2
+			y2 = pelota.y - np.sin(anglePelota)*0.2
+			print(x1,y1,x2,y2)
 			distance = calculateDistance(radiusList)
 			pelota = posPelota(x,y,theta,distance)
 			anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
 			print(x,y,pelota,radians2grades(anglePelota),radians2grades(theta))
-			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2-0.6,10)+0.8
+			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,5)
+			xRoute = np.linspace(x1,x2,num=5)
 			yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
 			route = np.vstack((xRoute, yRoute))
 			print("route",route.shape,route)
@@ -263,6 +268,27 @@ while not rospy.is_shutdown():
 	
 
     if moving == True:	
+	#linear
+	'''x2 = pelota.x - np.cos(anglePelota)*0.2
+	y2 = pelota.y - np.sin(anglePelota)*0.2
+	theta2 = atan2(y2, x2)
+
+	angle_to_goal = theta2
+        error_angle =  angleError(theta, angle_to_goal)
+    	if  error_angle >= 0.1:
+            if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
+                angularEntry = 0.3
+            else:
+                angularEntry = -0.3
+	point.x = route[0,idxPoint]
+        point.y = route[1,idxPoint]
+        inc_x = x2 - x
+        inc_y = y2 - y
+	linear_errror = sqrt(inc_x**2 + inc_y**2)
+
+        error_angle =  angleError(theta, anglePelota)'''
+
+
 	point.x = route[0,idxPoint]
         point.y = route[1,idxPoint]
         inc_x = point.x - x
@@ -276,14 +302,14 @@ while not rospy.is_shutdown():
             else:
                 angularEntry = -0.3
 
-	distance = sqrt(inc_x**2 + inc_y**2)
+	linear_error = sqrt(inc_x**2 + inc_y**2)
 
 	print(idxPoint)
 	print("Points",idxPoint,route[0,idxPoint],route[1,idxPoint])
-	print(x,y,error_angle,distance)
+	print(x,y,"errorAngle ",error_angle,"linearError ",linear_error)
 	
         
-    	if distance <= 0.5:
+    	if linear_error <= 0.3:
         	idxPoint+=1
 		if idxPoint > len(route):
 			moving = False
