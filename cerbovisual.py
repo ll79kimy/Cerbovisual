@@ -6,6 +6,7 @@ import time #no se para que
 from math import atan2, pi, sqrt
 #import imutils
 import cv2
+from std_msgs.msg import Empty
 from matplotlib import pyplot as plt
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Point, Twist
@@ -116,7 +117,55 @@ def calculateRouteLin(pelota, anglePelota):
 
 def angleError(a, b):
     diff = abs(a - b);
-    return diff if diff < 2*pi - diff else 2*pi - diff
+    return diff
+
+def searchBall():
+    global i
+    global r
+    if RGB != None:
+
+        gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
+
+        # Convert   BGR to HSV
+        hsv = cv2.cvtColor(RGB, cv2.COLOR_BGR2HSV)
+
+        # define range of yellow color in HSV
+        lower_yel = np.array([10,100,100])
+        upper_yel = np.array([30,255,255])
+
+        # Threshold the HSV image to get only yellow colors
+        colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
+        colorMask = cv2.erode(colorMask, None, iterations=2)
+        colorMask = cv2.dilate(colorMask, None, iterations=2)
+        #colorMask = np.array(colorMask, dtype='uint8')
+
+        cnts = cv2.findContours(colorMask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        center = None
+
+        if len(cnts) > 0:
+	    
+            # find the largest contour in the mask, then use
+            # it to compute the minimum enclosing circle and
+            # centroid
+            c = max(cnts, key=cv2.contourArea)
+            ((rx, ry), radius) = cv2.minEnclosingCircle(c)
+
+	    i+=1
+	    radiusList.pop(0)
+	    radiusList.append(radius)
+
+            M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+            # only proceed if the radius meets a minimum size
+            if radius > r:
+                # draw the circle and centroid on the frame,
+                # then update the list of tracked points
+                cv2.circle(RGB, (int(rx), int(ry)), int(radius),(0, 255, 255), 2)
+                cv2.circle(RGB, center, 5, (0, 0, 255), -1)	
+		colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
+		return RGB.shape[1]/2-center[0]
+    return None 
 
 rospy.init_node("ballFollower")
 r = rospy.Rate(10) #10hz
@@ -124,6 +173,7 @@ rospy.Subscriber("/camera/rgb/image_color", Image, getRGB)
 rospy.Subscriber("/odom", Odometry, getOdom)
 
 cmd_vel = rospy.Publisher("/cmd_vel_mux/input/navi", Twist, queue_size = 1)
+reset_odom = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty, queue_size=10)
 
 
 bridge = CvBridge()
@@ -171,6 +221,7 @@ line4, = ax2.plot(xline, dline, 'b-')
 i = 0
 radiusList = [0]*20
 distance = 1
+r= 15
 
 pelota = Point()
 anglePelota = 0
@@ -183,58 +234,19 @@ point = Point()
 
 searching = True
 moving = False
-hiting = False
+hitting = False
 route = None
 
 idxPoint = 0
+nPoints = 5
+
+reset_odom.publish(Empty())
 while not rospy.is_shutdown():
-    #print(x,y,theta)
-    if RGB != None and searching:
+    
+    error_angle = searchBall()
+    if searching:
 
-        gray = cv2.cvtColor(RGB,cv2.COLOR_BGR2GRAY)
-
-        # Convert   BGR to HSV
-        hsv = cv2.cvtColor(RGB, cv2.COLOR_BGR2HSV)
-
-        # define range of yellow color in HSV
-        lower_yel = np.array([10,100,100])
-        upper_yel = np.array([30,255,255])
-
-        # Threshold the HSV image to get only yellow colors
-        colorMask = cv2.inRange(hsv, lower_yel, upper_yel)
-        colorMask = cv2.erode(colorMask, None, iterations=2)
-        colorMask = cv2.dilate(colorMask, None, iterations=2)
-        #colorMask = np.array(colorMask, dtype='uint8')
-
-        cnts = cv2.findContours(colorMask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        center = None
-
-        if len(cnts) > 0:
-	    
-            # find the largest contour in the mask, then use
-            # it to compute the minimum enclosing circle and
-            # centroid
-            c = max(cnts, key=cv2.contourArea)
-            ((rx, ry), radius) = cv2.minEnclosingCircle(c)
-
-	    i+=1
-	    radiusList.pop(0)
-	    radiusList.append(radius)
-
-            M = cv2.moments(c)
-            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
-            # only proceed if the radius meets a minimum size
-            if radius > 10:
-                # draw the circle and centroid on the frame,
-                # then update the list of tracked points
-                cv2.circle(RGB, (int(rx), int(ry)), int(radius),(0, 255, 255), 2)
-                cv2.circle(RGB, center, 5, (0, 0, 255), -1)	
-		colorMask = cv2.cvtColor(colorMask, cv2.COLOR_GRAY2RGB)
-		error_angle = RGB.shape[1]/2-center[0]
-
-		
-
+	if error_angle != None:
 		if  abs(error_angle) >= 15:
 		    if error_angle > 0:
 			angularEntry = 0.3
@@ -247,85 +259,26 @@ while not rospy.is_shutdown():
 			anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
 			x1 = 0.2*np.cos(theta)
 			y1 = 0.2*np.sin(theta)
-			x2 = pelota.x - np.cos(anglePelota)*0.2
-			y2 = pelota.y - np.sin(anglePelota)*0.2
-			print("x1", x1,"y1",y1,"x2",x2,"y2",y2)
-			print("x",x,"y",y,pelota,"anglePelota", radians2grades(anglePelota),"theta", radians2grades(theta))
-			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,5)
+			x2 = pelota.x - np.cos(anglePelota)*0.3
+			y2 = pelota.y - np.sin(anglePelota)*0.3
+			'''print("x1", x1,"y1",y1,"x2",x2,"y2",y2)
+			print("x",x,"y",y,pelota)
+			print("anglePelota", radians2grades(anglePelota),"theta", radians2grades(theta))'''
+			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,nPoints)
 			xRoute = np.linspace(x1,x2,num=5)
 			yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
 			route = np.vstack((xRoute, yRoute))
 			print("route",route.shape,route)
 			searching = False
 			moving = True
-
-	elif angularEntry == 0:
-	    angularEntry = -0.3
-
-    cv2.imshow('RGB',RGB)
-    cv2.waitKey(1)
+        elif angularEntry == 0: 
+	    angularEntry = -0.3 
+		
 
 	
 
     if moving == True:	
-	#linear
-	'''x2 = pelota.x - np.cos(anglePelota)*0.2
-	y2 = pelota.y - np.sin(anglePelota)*0.2
-        inc_x = x2 - x
-        inc_y = y2 - y
-        angle_to_goal = atan2(inc_y, inc_x)
-        error_angle =  angleError(theta, angle_to_goal)
-	print("inc_x", inc_x, "inc_y",inc_y, "a2g", angle_to_goal, "error_angle", error_angle)
-	#linearEntry = 0.1
-	while abs(error_angle) > 0.07:
-    		if  error_angle >= 0.1:
-        	    if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
-        	        angularEntry = 0.3
-        	    else:
-        	        angularEntry = -0.3
-		linearEntry = 0
-		angularController.setPoint(angularEntry)	
-		speed.angular.z = angularController.update(speed.angular.z)
 
-		linearController.setPoint(linearEntry)
-		speed.linear.x = linearController.update(speed.linear.x)
-
-		cmd_vel.publish(speed)
-
-	linear_error = sqrt(inc_x**2 + inc_y**2)
-	while abs(linear_error) > 0.05:
-		linearEntry = 0.1		
-		linearController.setPoint(linearEntry)
-		angularEntry = 0
-		linearEntry = 0
-		angularController.setPoint(angularEntry)	
-		speed.angular.z = angularController.update(speed.angular.z)
-
-		linearController.setPoint(linearEntry)
-		speed.linear.x = linearController.update(speed.linear.x)
-
-		cmd_vel.publish(speed)
-
-        inc_x = goal.x - x
-        inc_y = goal.y - y	
-        angle_to_goal = atan2(inc_y, inc_x)
-        error_angle =  angleError(theta, angle_to_goal) 
-	while abs(error_angle) > 0.07:
-    		if  error_angle >= 0.1:
-        	    if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
-        	        angularEntry = 0.3
-        	    else:
-        	        angularEntry = -0.3
-		linearEntry = 0
-		angularController.setPoint(angularEntry)	
-		speed.angular.z = angularController.update(speed.angular.z)
-
-		linearController.setPoint(linearEntry)
-		speed.linear.x = linearController.update(speed.linear.x)
-
-		cmd_vel.publish(speed)'''
-
-	
 
 	#normal
 	point.x = route[0,idxPoint]
@@ -333,27 +286,55 @@ while not rospy.is_shutdown():
         inc_x = point.x - x
         inc_y = point.y - y
         angle_to_goal = atan2(inc_y, inc_x)
-        error_angle =  angleError(theta, angle_to_goal)
-	print("inc_x", inc_x, "inc_y",inc_y, "a2g", angle_to_goal, "error_angle", error_angle)
+        errorAngle =  angleError(theta, angle_to_goal)
+	print("inc_x", inc_x, "inc_y",inc_y, "a2g", angle_to_goal, "error_angle", errorAngle)
 	linearEntry = 0.1
-    	if  error_angle >= 0.25:
+    	if  errorAngle >= 0.25:
             if (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi):
-                angularEntry = 0.2
+                angularEntry = 0.3
             else:
-                angularEntry = -0.2
+                angularEntry = -0.3
+	else:
+	    angularEntry = 0
 
 	linear_error = sqrt(inc_x**2 + inc_y**2)
 
-	print("idxPoint:",idxPoint)
-	print("Points:",idxPoint,route[0,idxPoint],route[1,idxPoint])
-	print("x:",x,"y:",y,"errorAngle ",error_angle,"linearError ",linear_error)
+	'''print("idxPoint:",idxPoint)
+	print("Points:",idxPoint,"%.2f" % route[0,idxPoint],"%.2f" % route[1,idxPoint])
+	print("x:","%.2f" % x,"y:","%.2f" % y)
+	print("theta:","%.2f" % theta,"angle_to_goal:","%.2f" % angle_to_goal)
+	print("errorAngle ","%.2f" % error_angle,"angularEntry ","%.2f" % angularEntry,"linearError ","%.2f" % linear_error, (angle_to_goal > theta and angle_to_goal - theta < pi) or (angle_to_goal < theta and theta - angle_to_goal > pi))'''
 	
         
-    	if linear_error <= 0.01:
+    	if linear_error <= 0.1:
         	idxPoint+=1
-		if idxPoint > 5:
+		if idxPoint > nPoints - 2:
+			angularEntry = 0
+			linearEntry = 0
 			moving = False
-			hiting = True
+			hitting = True 
+			r = 30
+
+    if hitting:
+	
+	if error_angle != None:
+		if  abs(error_angle) >= 5:
+		    if error_angle > 0:
+			angularEntry = 0.3
+		    else:
+			angularEntry = -0.3
+	    	else:
+			angularEntry = 0
+			if(x<=3):
+			    linearEntry = 0.3
+			else:
+			    linearEntry = 0
+                        
+
+        elif angularEntry == 0: 
+	    angularEntry = 0.5 
+
+	
 			
 
     angularController.setPoint(angularEntry)	
@@ -362,8 +343,11 @@ while not rospy.is_shutdown():
     linearController.setPoint(linearEntry)
     speed.linear.x = linearController.update(speed.linear.x)
 
+
     cmd_vel.publish(speed)
 
+    cv2.imshow('RGB',RGB)
+    cv2.waitKey(1)
    	    
     thismanager = plt.get_current_fig_manager()
     thismanager.window.wm_geometry("+700+1")
@@ -387,4 +371,5 @@ while not rospy.is_shutdown():
 
         #print(error_angle, speed.angular, speed.linear.x
         #r.sleep()
+
 

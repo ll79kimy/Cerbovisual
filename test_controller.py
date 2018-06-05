@@ -64,6 +64,7 @@ goal.y = -1
 anglePelota = atan2((goal.y-pelota.y),(goal.x-pelota.x))
 x1 = (0.2*np.cos(theta))
 x2 = (pelota.x - np.cos(anglePelota)*0.2)
+x3 = 
 print(pelota,radians2grades(anglePelota),radians2grades(theta))
 #xRoute = np.linspace(x1,x2,num=10)
 dx = (x2-x1)/10
