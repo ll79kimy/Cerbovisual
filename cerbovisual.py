@@ -24,6 +24,7 @@ theta = 0.0
 angularValue = 0
 
 def getOdom(msg):
+#function for receiving the actual position and orientation of the robot. Orientation in quateriones too roll pitch yaw angles
     global x
     global y
     global theta
@@ -34,7 +35,9 @@ def getOdom(msg):
     orientation = msg.pose.pose.orientation
     roll, pitch, theta = euler_from_quaternion([orientation.x, orientation.y, orientation.z, orientation.w])
 
+
 def getRGB(data):
+#function to get the acutal RGB imagen of the camera
     global RGB
     try:
         RGB = bridge.imgmsg_to_cv2(data, "bgr8")
@@ -42,6 +45,7 @@ def getRGB(data):
         print(e)
 
 def promediarLista(lista):
+#function to calculate the promedian of a list/array
     #sum=0.0
     #for i in range(0,len(lista)):
         #sum=sum+lista[i]
@@ -49,7 +53,8 @@ def promediarLista(lista):
     #return sum/len(lista)
    return float(sum(lista)) / max(len(lista), 1)
 
-def newOdom(msg):
+'''def newOdom(msg):
+
 	global x
 	global y
 	global theta
@@ -58,14 +63,16 @@ def newOdom(msg):
 	y = msg.pose.pose.position.y
 	rot_q = msg.pose.pose.orientation
 	(r, p, theta) = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
-	return x,y,theta
+	return x,y,theta'''
 
 def posPelota (x,y,theta, distance):
+#calculates the position x and y of the ball with the position of the robot, its angle and the distance between the ball and the robot
 	pelota.x = x+math.cos(theta)*distance 
 	pelota.y = y+math.sin(theta)*distance
 	return pelota
 
 def calculateDistance(radiusList):
+#calculates the distance between ball and robot, first with a guess and despues with functions for regions because the functions of the distance is not linear
 	radiusMean = promediarLista(radiusList)
 	distance = 60/radiusMean
 	if distance > 2.5:
@@ -80,15 +87,18 @@ def radians2grades(radians):
 	return radians*180/pi
 
 def calculateRoute(pelota, anglePelota, goal,theta):
+#the function connects to linear splines with a kubik spline. the linear splines are between the ball and an point 30 cm in the opposite direction of the goal(point 2) and between the startpoint of the robot and 20 cm in direction of theta
+	#reference points of spline in directions of goal (2) or the actual orientation of the robot (1)
 	x1 = 0.2*np.cos(theta)
 	y1 = 0.2*np.sin(theta)
-	x2 = pelota.x - np.cos(anglePelota)*0.2
-	y2 = pelota.y - np.sin(anglePelota)*0.2
-	
+	x2 = pelota.x - np.cos(anglePelota)*0.3
+	y2 = pelota.y - np.sin(anglePelota)*0.3
+	#function linear y = m*x+b
 	m1 = y1/x1
 	m2 = (pelota.y-y2)/(pelota.x-x2)
-
 	b2 = y2-m2*x2
+
+	#calculate matrix of the kubik spline a*x³+b*x²+c*x+d
 	v = np.matrix((m1,m2,y1,y2))
 	v = np.transpose(v)
 	A = np.matrix(((3*x1**2, 2*x1, 1, 0), (3*x2**2, 2*x2, 1, 0), (x1**3, x1**2, x1, 1),(x2**3, x2**2, x2, 1)))
@@ -97,15 +107,13 @@ def calculateRoute(pelota, anglePelota, goal,theta):
 	print ("v", v)
 	m = Ai*v
 	print ("m", m,"m1", m1,"m2", m2,"b2", b2, "x1", x1,"y1", y1,"x2", x2,"y2", y2)
-	#print("Ys",y[0][0],y[1][0],y[2][0],y[3][0])
 	
-	def cuadratic(x):	
-		#return a*x**2+b*x+c
-
+	def cuadratic(x):
+		#calculate the function values of specified values of x 	
 		return m[0]*x**3+m[1]*x**2+m[2]*x+m[3]
 	return cuadratic
 
-def calculateRouteLin(pelota, anglePelota):
+'''def calculateRouteLin(pelota, anglePelota):
 	x2 = pelota.x - np.cos(anglePelota)*0.2
 	y2 = pelota.y - np.sin(anglePelota)*0.2
 	theta2 = atan2(y2, x2)
@@ -113,13 +121,15 @@ def calculateRouteLin(pelota, anglePelota):
 	def cuadratic(x):	
 		#return a*x**2+b*x+c
 		return m1*x
-	return cuadratic
+	return cuadratic'''
 
 def angleError(a, b):
+    #calculate the difference between dos angles
     diff = abs(a - b);
     return diff
 
 def searchBall():
+#function to search for a yellow ball in an imagen with a minimal radius. Finally drawing a line around the ball
     global i
     global r
     if RGB != None:
@@ -167,6 +177,7 @@ def searchBall():
 		return RGB.shape[1]/2-center[0]
     return None 
 
+#initialize the rospy node and subscribe to get the imagen and odometry
 rospy.init_node("ballFollower")
 r = rospy.Rate(10) #10hz
 rospy.Subscriber("/camera/rgb/image_color", Image, getRGB)
@@ -178,11 +189,12 @@ reset_odom = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty, queu
 
 bridge = CvBridge()
 
+#set initial speed to zero
 speed = Twist()
 speed.angular.z = 0
 speed.linear.x = 0
 
-
+#define the parameters of the PID controller (linear and angular)
 angularController = PID()
 angularController.setKp(0.001)
 angularController.setKi(0.5)
@@ -197,6 +209,7 @@ linearController.setKd(0.005)
 
 linearEntry = 0
 
+#plot the control
 plt.ion()
 
 xline = range(100)
@@ -217,29 +230,35 @@ ax2 = fig.add_subplot(212)
 ax2.set_ylim(-0.5, 0.5)
 line3, = ax2.plot(xline, cline, 'r-')
 line4, = ax2.plot(xline, dline, 'b-')
-
+#initialization of used varibales 
 i = 0
+#use 20 values for the promedio calculation of the radius of the ball
 radiusList = [0]*20
+#the inicial distance between robot and ball is 1 m
 distance = 1
+#the minimal radius of the ball is 15 pixeles
 r= 15
 
 pelota = Point()
 anglePelota = 0
 
+#the goal is defines in the position 4, -1
 goal = Point()
 goal.x = 4
 goal.y = -1
 
 point = Point()
 
+#variables for the sequences of the programme
 searching = True
 moving = False
 hitting = False
 route = None
 
+#defines the number of steps in the calculation of the route
 idxPoint = 0
 nPoints = 5
-
+ 
 reset_odom.publish(Empty())
 while not rospy.is_shutdown():
     
@@ -247,11 +266,13 @@ while not rospy.is_shutdown():
     if searching:
 
 	if error_angle != None:
+		#if the absolute value of error_angle (distance between the center of the ball and the center of the imagen) is bigger than 15 it will turn till the error is casi 0
 		if  abs(error_angle) >= 15:
 		    if error_angle > 0:
 			angularEntry = 0.3
-		    else:
+		    else: 
 			angularEntry = -0.3
+		# if the ball is in the center it will stop to turn and calculate the perfect way to reach the ball
 	    	else:
 			angularEntry = 0
 			distance = calculateDistance(radiusList)
@@ -264,13 +285,14 @@ while not rospy.is_shutdown():
 			'''print("x1", x1,"y1",y1,"x2",x2,"y2",y2)
 			print("x",x,"y",y,pelota)
 			print("anglePelota", radians2grades(anglePelota),"theta", radians2grades(theta))'''
-			xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,nPoints)
+			'xRoute = np.linspace(0.2*np.cos(theta),pelota.x - np.cos(anglePelota)*0.2,nPoints)'
 			xRoute = np.linspace(x1,x2,num=5)
 			yRoute = calculateRoute(pelota,anglePelota,goal,theta)(xRoute)
 			route = np.vstack((xRoute, yRoute))
 			print("route",route.shape,route)
 			searching = False
 			moving = True
+	#if it cant finde a ball it will turn and search for the ball
         elif angularEntry == 0: 
 	    angularEntry = -0.3 
 		
@@ -280,7 +302,7 @@ while not rospy.is_shutdown():
     if moving == True:	
 
 
-	#normal
+	#drive to the first point of the route by calculating the differntes between the angles and the position. When both vales are almost cero it will drive to the following point 
 	point.x = route[0,idxPoint]
         point.y = route[1,idxPoint]
         inc_x = point.x - x
@@ -316,7 +338,7 @@ while not rospy.is_shutdown():
 			r = 30
 
     if hitting:
-	
+	#when the last point of the routine is reached, the robot will turn and search for the ball. When the ball is in the center of the robot it will speed up (only linear) and hit the ball to play it and make a goal. 
 	if error_angle != None:
 		if  abs(error_angle) >= 5:
 		    if error_angle > 0:
